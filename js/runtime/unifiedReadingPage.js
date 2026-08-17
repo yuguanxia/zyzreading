@@ -85,7 +85,9 @@
         timerInterval: null,
         lastRange: null,
         currentHighlightNode: null,
-        keepToolbar: false
+        keepToolbar: false,
+        touchDragPayload: null,
+        touchDragNode: null
     };
 
     function ensurePracticeTimerBridge() {
@@ -1228,6 +1230,136 @@
                 return;
             }
             handleDropOnDropzone(target, payload);
+        });
+        attachTouchDragFallback();
+    }
+
+    function isTouchDragFallbackEnabled() {
+        try {
+            return global.matchMedia
+                && (global.matchMedia('(pointer: coarse)').matches || global.matchMedia('(hover: none)').matches);
+        } catch (_) {
+            return false;
+        }
+    }
+
+    function clearTouchDragSelection() {
+        if (interaction.touchDragNode) {
+            interaction.touchDragNode.classList.remove('touch-drag-selected');
+        }
+        interaction.touchDragNode = null;
+        interaction.touchDragPayload = null;
+    }
+
+    function selectTouchDragItem(item) {
+        const payload = buildDragPayload(item);
+        if (!payload || !payload.value) {
+            return;
+        }
+        clearTouchDragSelection();
+        interaction.touchDragNode = item;
+        interaction.touchDragPayload = payload;
+        item.classList.add('touch-drag-selected');
+    }
+
+    function ensureTouchDragHint() {
+        const groups = document.getElementById('question-groups');
+        if (!groups || groups.querySelector('.touch-drag-hint')) {
+            return;
+        }
+        const hasDragQuestion = groups.querySelector('.drag-item, .draggable-word, .paragraph-dropzone, .match-dropzone, .drop-target-summary');
+        if (!hasDragQuestion) {
+            return;
+        }
+        const hint = document.createElement('div');
+        hint.className = 'touch-drag-hint';
+        hint.textContent = 'iPad touch mode: tap an option, then tap the matching target box. Tap a filled box to clear it.';
+        groups.prepend(hint);
+    }
+
+    function ensureTouchDragStyles() {
+        if (document.getElementById('touch-drag-fallback-style')) {
+            return;
+        }
+        const style = document.createElement('style');
+        style.id = 'touch-drag-fallback-style';
+        style.textContent = `
+            .touch-drag-hint {
+                margin: 8px 0 12px;
+                padding: 10px 12px;
+                border: 1px solid #bfdbfe;
+                border-radius: 10px;
+                background: #eff6ff;
+                color: #1e3a8a;
+                font-size: 13px;
+                line-height: 1.45;
+            }
+            .drag-item.touch-drag-selected,
+            .draggable-word.touch-drag-selected,
+            .card.touch-drag-selected {
+                outline: 3px solid #f59e0b;
+                outline-offset: 2px;
+                border-color: #f59e0b !important;
+                background: #fff7ed !important;
+            }
+            .paragraph-dropzone.touch-drop-ready,
+            .match-dropzone.touch-drop-ready,
+            .drop-target-summary.touch-drop-ready {
+                cursor: pointer;
+                min-height: 36px;
+            }
+            @media (pointer: coarse) {
+                .drag-item,
+                .draggable-word,
+                .card {
+                    touch-action: manipulation;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function attachTouchDragFallback() {
+        if (!isTouchDragFallbackEnabled()) {
+            return;
+        }
+        ensureTouchDragStyles();
+        ensureTouchDragHint();
+        document.querySelectorAll('.drag-item, .draggable-word, .card').forEach((item) => {
+            if (!(item instanceof HTMLElement) || item.dataset.touchDragBound === '1') {
+                return;
+            }
+            item.dataset.touchDragBound = '1';
+            item.addEventListener('click', (event) => {
+                const assignedDropzone = item.closest('.paragraph-dropzone, .match-dropzone, .drop-target-summary');
+                if (assignedDropzone && item.classList.contains('drag-item--assigned')) {
+                    clearDropzone(assignedDropzone);
+                    clearTouchDragSelection();
+                    updateNavStatuses();
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                }
+                selectTouchDragItem(item);
+                event.preventDefault();
+                event.stopPropagation();
+            });
+        });
+        getDropzones().forEach((dropzone) => {
+            dropzone.classList.add('touch-drop-ready');
+            if (dropzone.dataset.touchDropBound === '1') {
+                return;
+            }
+            dropzone.dataset.touchDropBound = '1';
+            dropzone.addEventListener('click', (event) => {
+                if (!interaction.touchDragPayload) {
+                    return;
+                }
+                handleDropOnDropzone(dropzone, interaction.touchDragPayload);
+                clearTouchDragSelection();
+                event.preventDefault();
+                event.stopPropagation();
+            });
         });
     }
 
