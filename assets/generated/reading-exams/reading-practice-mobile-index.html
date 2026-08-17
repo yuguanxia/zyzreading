@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>IELTS Reading Practice</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --panel: #ffffff;
+      --text: #111827;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --accent: #2563eb;
+      --accent-soft: #eff6ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.5;
+      -webkit-text-size-adjust: 100%;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      padding: calc(14px + env(safe-area-inset-top, 0px)) 16px 14px;
+      background: rgba(255,255,255,.96);
+      border-bottom: 1px solid var(--line);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+    h1 { margin: 0 0 4px; font-size: 21px; }
+    .sub { margin: 0; color: var(--muted); font-size: 13px; }
+    main { max-width: 960px; margin: 0 auto; padding: 14px; }
+    .tools {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    input, select {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 16px;
+    }
+    .stats { color: var(--muted); font-size: 13px; margin: 6px 0 12px; }
+    .list { display: grid; gap: 10px; }
+    .card {
+      display: block;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      text-decoration: none;
+      color: inherit;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+    }
+    .card:active { transform: translateY(1px); }
+    .title { font-weight: 800; font-size: 15px; margin-bottom: 8px; }
+    .meta { display: flex; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 3px 8px;
+      background: var(--accent-soft);
+      color: #1d4ed8;
+      font-weight: 700;
+    }
+    .empty {
+      padding: 28px 16px;
+      text-align: center;
+      color: var(--muted);
+      background: var(--panel);
+      border: 1px dashed var(--line);
+      border-radius: 14px;
+    }
+    @media (min-width: 700px) {
+      .tools { grid-template-columns: 1fr 180px 180px; }
+      .list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>IELTS Reading Practice</h1>
+    <p class="sub">Mobile / iPad version · tap a passage to start</p>
+  </header>
+  <main>
+    <div class="tools">
+      <input id="search" type="search" placeholder="Search title or exam ID">
+      <select id="category">
+        <option value="">All passages</option>
+        <option value="P1">Passage 1</option>
+        <option value="P2">Passage 2</option>
+        <option value="P3">Passage 3</option>
+      </select>
+      <select id="frequency">
+        <option value="">All frequency</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
+    </div>
+    <div class="stats" id="stats">Loading...</div>
+    <div class="list" id="list"></div>
+  </main>
+  <script src="./manifest.js"></script>
+  <script>
+    (function () {
+      const manifest = window.__READING_EXAM_MANIFEST__ || {};
+      const records = Object.values(manifest).map((item) => {
+        const examId = String(item.examId || item.dataKey || '');
+        const frequency = (examId.match(/-(ultra-high|very-high|high|medium|low)-/) || [])[1] || '';
+        return {
+          examId,
+          dataKey: String(item.dataKey || examId),
+          title: cleanTitle(item.title || examId),
+          category: String(item.category || ''),
+          frequency
+        };
+      }).sort((a, b) => {
+        const rank = { 'ultra-high': 5, high: 4, 'very-high': 3, medium: 2, low: 1 };
+        return (rank[b.frequency] || 0) - (rank[a.frequency] || 0)
+          || a.category.localeCompare(b.category)
+          || a.examId.localeCompare(b.examId, undefined, { numeric: true });
+      });
+
+      const list = document.getElementById('list');
+      const stats = document.getElementById('stats');
+      const search = document.getElementById('search');
+      const category = document.getElementById('category');
+      const frequency = document.getElementById('frequency');
+
+      function cleanTitle(value) {
+        return String(value || '')
+          .replace(/锛堟棤棰樼洰锛\?/g, '')
+          .replace(/[^\x20-\x7E\u4e00-\u9fff]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+
+      function freqLabel(value) {
+        if (value === 'ultra-high') return 'Ultra high';
+        if (value === 'very-high') return 'Very high';
+        if (value === 'high') return 'High';
+        if (value === 'medium') return 'Medium';
+        if (value === 'low') return 'Low';
+        return 'Unknown';
+      }
+
+      function render() {
+        const q = search.value.trim().toLowerCase();
+        const cat = category.value;
+        const freq = frequency.value;
+        const filtered = records.filter((item) => {
+          if (cat && item.category !== cat) return false;
+          if (freq && item.frequency !== freq && !(freq === 'high' && item.frequency === 'very-high')) return false;
+          if (q && !`${item.title} ${item.examId}`.toLowerCase().includes(q)) return false;
+          return true;
+        });
+        stats.textContent = `${filtered.length} of ${records.length} passages`;
+        if (!filtered.length) {
+          list.innerHTML = '<div class="empty">No matching passages.</div>';
+          return;
+        }
+        list.innerHTML = filtered.map((item) => {
+          const href = `./reading-practice-mobile.html?examId=${encodeURIComponent(item.examId)}`;
+          return `<a class="card" href="${href}">
+            <div class="title">${escapeHtml(item.title || item.examId)}</div>
+            <div class="meta">
+              <span class="pill">${escapeHtml(item.category || 'Passage')}</span>
+              <span>${escapeHtml(freqLabel(item.frequency))}</span>
+              <span>${escapeHtml(item.examId)}</span>
+            </div>
+          </a>`;
+        }).join('');
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, (ch) => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[ch]));
+      }
+
+      search.addEventListener('input', render);
+      category.addEventListener('change', render);
+      frequency.addEventListener('change', render);
+      render();
+    })();
+  </script>
+</body>
+</html>
